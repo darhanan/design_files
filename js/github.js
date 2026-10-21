@@ -1,4 +1,4 @@
-// Minimal GitHub API client (through the upload proxy): reads JSON from the repo and writes several files in one commit.
+// Minimal GitHub API client (through the upload proxy, which holds the token): reads JSON from the repo and writes several files in one commit.
 import { REPO, API } from "./config.js";
 const repoPath = `/repos/${REPO.owner}/${REPO.name}`;
 
@@ -20,28 +20,18 @@ function httpError(status, message) {
 const abortError = () => Object.assign(new Error("Загрузка отменена"), { name: "AbortError" });
 
 export class GitHub {
-  // `password` is the team password; the proxy swaps it for the real GitHub token.
-  constructor(password) {
-    this.token = password;
-  }
 
   async api(path, { method = "GET", body } = {}) {
     const res = await fetch(API + path, {
       method,
       headers: {
         Accept: "application/vnd.github+json",
-        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) throw httpError(res.status, (await res.json().catch(() => ({}))).message || res.statusText);
     return res.status === 204 ? null : res.json();
-  }
-
-  // Throws with status 401 when the team password is wrong.
-  async check() {
-    await this.api("/check");
   }
 
   async headSha() {
@@ -66,7 +56,6 @@ export class GitHub {
       xhr.open("POST", `${API}${repoPath}/git/blobs`);
       xhr.setRequestHeader("Accept", "application/vnd.github+json");
       xhr.setRequestHeader("Content-Type", "application/json");
-      if (this.token) xhr.setRequestHeader("Authorization", `Bearer ${this.token}`);
       xhr.upload.onprogress = e => e.lengthComputable && onProgress?.(e.loaded / e.total);
       xhr.onload = () => {
         let body = {};

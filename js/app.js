@@ -3,7 +3,6 @@ import { GitHub, bytesToBase64 } from "./github.js";
 import { analyze, classify, slugify } from "./classify.js";
 
 const MAX_SIZE = 50 * 1024 * 1024;
-const PASSWORD_KEY = "design-files:password";
 const AUTHOR_KEY = "design-files:author";
 const PREVIEW_HASH = "#view=gallery&theme=light";
 
@@ -23,38 +22,12 @@ const state = {
   local: new Map(), // id -> html uploaded in this session, shown until GitHub Pages has the file
   fresh: new Set(), // ids uploaded in this session
   busy: new Set(),
-  token: store.get(PASSWORD_KEY) || "", // team password for the upload proxy
   author: store.get(AUTHOR_KEY) || "",
 };
-let gh = new GitHub(state.token);
-store.set("design-files:token", null); // earlier versions kept a raw GitHub token here
-
-function setPassword(password) {
-  state.token = password;
-  gh = new GitHub(password);
-  store.set(PASSWORD_KEY, password || null);
-}
-// Russian layout → the Latin keys under it, so "вшвфдуфв" typed by mistake still means "didalead".
-const RU_KEYS = "йцукенгшщзхъфывапролджэячсмитьбюё";
-const EN_KEYS = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
-const fromRussianLayout = s =>
-  s.replace(/[а-яё]/gi, c => {
-    const en = EN_KEYS[RU_KEYS.indexOf(c.toLowerCase())];
-    return c === c.toLowerCase() ? en : en.toUpperCase();
-  });
-
-// Checks the team password with the proxy and remembers it; throws an error with a message fit for the UI.
-async function verifyPassword(raw) {
-  const password = fromRussianLayout(raw.trim());
-  // Browsers refuse non-Latin header values outright (Safari just says "Type error").
-  if (/[^\x20-\x7e]/.test(password)) throw new Error("Пароль набирается латиницей — переключите раскладку");
-  try {
-    await new GitHub(password).check();
-  } catch (e) {
-    throw new Error(e.status === 401 ? "Неверный пароль команды" : e.status ? `Ошибка: ${e.message}` : "Нет связи с сервером загрузки — проверьте интернет");
-  }
-  setPassword(password);
-}
+const gh = new GitHub();
+// Earlier versions kept a GitHub token, then a team password, in this browser.
+store.set("design-files:token", null);
+store.set("design-files:password", null);
 
 function setAuthor(name) {
   state.author = name;
@@ -64,10 +37,8 @@ function setAuthor(name) {
 // ── Data ──────────────────────────────────────────────
 
 async function fetchJson(path, fallback) {
-  // With a token read straight from the repo (always fresh); otherwise from the published site.
-  if (state.token) {
-    try { return await gh.readJson(path, REPO.branch, fallback); } catch (e) { console.warn(e); }
-  }
+  // Straight from the repo through the proxy (always fresh); if that fails, from the published site.
+  try { return await gh.readJson(path, REPO.branch, fallback); } catch (e) { console.warn(e); }
   try {
     const res = await fetch(`${path}?t=${Date.now()}`, { cache: "no-store" });
     return res.ok ? await res.json() : fallback;
@@ -261,7 +232,7 @@ function openViewer(d) {
   else { frame.removeAttribute("srcdoc"); frame.src = fileUrl(d); }
   $("#viewer-download").href = d.file;
   $("#viewer-download").setAttribute("download", d.originalName || `${d.id}.html`);
-  // Never open the raw file directly: it would run on this origin and could read the token.
+  // Never open the raw file directly: its scripts would run with this site's origin.
   $("#viewer-newtab").href = `view.html?f=${encodeURIComponent(d.file)}&v=${encodeURIComponent(d.updatedAt)}`;
   const sel = $("#viewer-category");
   sel.innerHTML = allCategories().map(c => `<option value="${esc(c.id)}"${c.id === d.category ? " selected" : ""}>${esc(c.name)}</option>`).join("");
@@ -307,12 +278,6 @@ function toast(text, { kind = "", spinner = false, action, timeout = 5000 } = {}
 
 // ── Writing to the repo ───────────────────────────────
 
-function needToken() {
-  if (state.token) return false;
-  openSettings("Чтобы менять дизайны и категории, введите пароль команды — это нужно сделать один раз.");
-  return true;
-}
-
 async function saveManifest(message, update, extra = {}) {
   const results = await gh.commit({ message, ...extra, json: { [MANIFEST]: m => update(m || { designs: [] }) } });
   state.designs = results[MANIFEST].designs;
@@ -341,7 +306,6 @@ function openUpload(files) {
   if (!$("#upload").open) {
     if (!upload.running) upload.items = [];
     $("#upload-status").textContent = "";
-    $("#upload-password").value = "";
     $("#upload-author").value = state.author;
     renderUpload();
     $("#upload").showModal();
@@ -417,10 +381,7 @@ function renderUpload() {
     .join("");
   $("#upload-list").querySelectorAll("select").forEach((s, i) => (s.value = items[i].category));
 
-  const needPassword = !state.token, needAuthor = !state.author;
-  $("#upload-auth").hidden = !items.length || running || (!needPassword && !needAuthor);
-  $("#upload-password-field").hidden = !needPassword;
-  $("#upload-author-field").hidden = !needAuthor;
+  $("#upload-auth").hidden = !items.length || running || !!state.author;
   $("#dropzone").disabled = !!running;
 
   const ok = $("#upload-ok");
@@ -449,7 +410,7 @@ $("#upload-list").addEventListener("input", e => {
   }
 });
 // A stale error goes away as soon as the designer starts fixing things.
-for (const id of ["#upload-password", "#upload-author"]) $(id).addEventListener("input", () => ($("#upload-status").textContent = ""));
+$("#upload-author").addEventListener("input", () => ($("#upload-status").textContent = ""));
 
 $("#upload-list").addEventListener("click", e => {
   const i = e.target.closest("[data-remove]")?.dataset.remove;
@@ -479,20 +440,11 @@ $("#upload-ok").addEventListener("click", async () => {
     $(`#upload-list [data-i="${unnamed}"] .name-input`).focus();
     return;
   }
-  if (!state.token) {
-    const password = $("#upload-password").value;
-    if (!password.trim()) { status.textContent = "Введите пароль команды"; $("#upload-password").focus(); return; }
-    $("#upload-ok").disabled = true;
-    try {
-      await verifyPassword(password);
-    } catch (e) {
-      status.textContent = e.message;
-      $("#upload-ok").disabled = false;
-      return;
-    }
+  if (!state.author) {
+    const author = $("#upload-author").value.trim();
+    if (!author) { status.textContent = "Укажите ваше имя"; $("#upload-author").focus(); return; }
+    setAuthor(author);
   }
-  const author = $("#upload-author").value.trim();
-  if (author) setAuthor(author);
   saveUploads();
 });
 
@@ -551,15 +503,13 @@ async function saveUploads() {
   } catch (e) {
     for (const it of batch) { state.local.delete(it.id); state.fresh.delete(it.id); }
     upload.running = null;
-    if (e.status === 401) setPassword(""); // password changed: ask again
     renderUpload();
     $("#upload-status").textContent =
-      e.name === "AbortError" ? "Загрузка отменена — ничего не сохранено" : `Не загрузилось: ${e.status === 401 ? "неверный пароль команды" : e.message}`;
+      e.name === "AbortError" ? "Загрузка отменена — ничего не сохранено" : `Не загрузилось: ${e.status ? e.message : "нет связи с сервером загрузки"}`;
   }
 }
 
 async function mutate(id, message, change, extra) {
-  if (needToken()) return;
   state.busy.add(id);
   render();
   try {
@@ -625,36 +575,13 @@ window.addEventListener("scroll", closeMenu, { passive: true });
 
 // ── Settings ──────────────────────────────────────────
 
-function openSettings(reason) {
-  $("#token-reason").textContent = reason || "Смотреть дизайны может кто угодно по ссылке. Чтобы загружать и менять, нужен пароль команды — вводится один раз и хранится только в этом браузере.";
-  $("#token").value = state.token;
+function openSettings() {
   $("#author").value = state.author;
-  const status = $("#token-status");
-  status.className = "status" + (state.token ? " ok" : "");
-  status.textContent = state.token ? "Пароль сохранён — можно загружать" : "";
   renderCatEditor();
   $("#settings").showModal();
 }
 
 $("#author").addEventListener("change", e => setAuthor(e.target.value.trim()));
-
-$("#token-save").addEventListener("click", async () => {
-  const password = $("#token").value;
-  const status = $("#token-status");
-  if (!password.trim()) {
-    setPassword("");
-    status.className = "status"; status.textContent = "Пароль удалён из этого браузера";
-    return;
-  }
-  status.className = "status"; status.textContent = "Проверяю…";
-  try {
-    await verifyPassword(password);
-    status.className = "status ok"; status.textContent = "Пароль сохранён — можно загружать";
-  } catch (e) {
-    status.className = "status err";
-    status.textContent = e.message;
-  }
-});
 
 let catDraft = [];
 function renderCatEditor() {
@@ -698,7 +625,6 @@ $("#cat-add").addEventListener("click", () => {
   $("#cat-editor .cat-row:last-child input").focus();
 });
 $("#cat-save").addEventListener("click", async () => {
-  if (needToken()) return;
   const taken = new Set();
   const cats = catDraft
     .filter(c => c.name.trim())

@@ -1,7 +1,7 @@
-// Upload proxy for Design Files. Holds the GitHub token so designers only need the team password.
-// It forwards a small set of GitHub API calls, and only for this one repo and branch.
+// Upload proxy for Design Files. Holds the GitHub token so designers need no GitHub account.
+// It forwards a small set of GitHub API calls, only for this one repo and branch, only from the site's origins.
 //
-// Secrets (wrangler secret put …): GITHUB_TOKEN, TEAM_PASSWORD. Vars in wrangler.toml: REPO, BRANCH, ORIGINS.
+// Secret (wrangler secret put …): GITHUB_TOKEN. Vars in wrangler.toml: REPO, BRANCH, ORIGINS.
 
 const GITHUB = "https://api.github.com";
 
@@ -14,16 +14,6 @@ function allowed(method, rest, env) {
   return false;
 }
 
-// Compare without leaking the password length or prefix through timing.
-async function samePassword(a, b) {
-  const enc = new TextEncoder();
-  const [x, y] = await Promise.all([a, b].map(s => crypto.subtle.digest("SHA-256", enc.encode(s))));
-  const u = new Uint8Array(x), v = new Uint8Array(y);
-  let diff = 0;
-  for (let i = 0; i < u.length; i++) diff |= u[i] ^ v[i];
-  return diff === 0;
-}
-
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
@@ -33,7 +23,7 @@ export default {
       "Access-Control-Allow-Origin": okOrigin ? origin : origins[0],
       "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
       // Echo what the browser asks for: Safari adds Cache-Control/Pragma to some requests, Chrome doesn't.
-      "Access-Control-Allow-Headers": request.headers.get("Access-Control-Request-Headers") || "Authorization, Content-Type, Accept",
+      "Access-Control-Allow-Headers": request.headers.get("Access-Control-Request-Headers") || "Content-Type, Accept",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     };
@@ -41,13 +31,9 @@ export default {
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     if (!okOrigin) return reply(403, { message: "Forbidden origin" });
-    if (!env.TEAM_PASSWORD || !env.GITHUB_TOKEN) return reply(503, { message: "Сервер загрузки ещё не настроен" });
-
-    const password = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!password || !(await samePassword(password, env.TEAM_PASSWORD))) return reply(401, { message: "Неверный пароль команды" });
+    if (!env.GITHUB_TOKEN) return reply(503, { message: "Сервер загрузки ещё не настроен" });
 
     const url = new URL(request.url);
-    if (url.pathname === "/check") return reply(200, { ok: true });
 
     const prefix = `/repos/${env.REPO}`;
     if (!(url.pathname === prefix || url.pathname.startsWith(prefix + "/"))) return reply(404, { message: "Not found" });
@@ -72,7 +58,7 @@ export default {
       },
       body,
     });
-    // GitHub rejecting our token is the owner's problem, not a wrong team password.
+    // GitHub rejecting our token is the owner's problem: say so instead of passing a bare 401 on.
     if (res.status === 401) return reply(502, { message: "Ключ GitHub на сервере не работает — напишите владельцу" });
     return new Response(res.body, {
       status: res.status,

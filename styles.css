@@ -303,8 +303,6 @@ main { padding: 8px 32px 64px; }
 
 .upload-auth { margin-top: 18px; padding-top: 4px; border-top: 1px solid var(--border); }
 #upload-status:empty { display: none; }
-/* Masked without type=password, so password managers don't treat the modal as a login form. */
-.input.secret:not(:placeholder-shown), .input.secret:not([placeholder]) { -webkit-text-security: disc; text-security: disc; }
 
 .upload-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 16px 0; }
 .btn.pill { height: 44px; border-radius: 999px; justify-content: center; font-size: 15px; }
