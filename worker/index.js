@@ -40,6 +40,7 @@ export default {
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     if (!okOrigin) return reply(403, { message: "Forbidden origin" });
+    if (!env.TEAM_PASSWORD || !env.GITHUB_TOKEN) return reply(503, { message: "Сервер загрузки ещё не настроен" });
 
     const password = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     if (!password || !(await samePassword(password, env.TEAM_PASSWORD))) return reply(401, { message: "Неверный пароль команды" });

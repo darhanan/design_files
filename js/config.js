@@ -5,4 +5,4 @@ export const MANIFEST = "designs.json";
 export const CATEGORIES = "categories.json";
 export const DESIGNS_DIR = "designs";
 export const UNSORTED = { id: "unsorted", name: "Без категории", topics: [], keywords: [] };
-export const API = "https://design-files.REPLACE_ME.workers.dev";
+export const API = "https://design-files.darhanan.workers.dev";
