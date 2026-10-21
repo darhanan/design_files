@@ -97,6 +97,21 @@
       "createdAt": "2026-10-21T07:05:35.352Z",
       "updatedAt": "2026-10-21T07:05:35.352Z",
       "by": "Дархан"
+    },
+    {
+      "id": "academy-health-survey-29",
+      "name": "Academy Health Survey",
+      "autoName": true,
+      "originalName": "academy-health-survey_29.html",
+      "file": "designs/academy-health-survey-29.html",
+      "category": "edu-page",
+      "autoCategory": true,
+      "platforms": [],
+      "screens": [],
+      "size": 1902944,
+      "createdAt": "2026-10-21T08:07:59.972Z",
+      "updatedAt": "2026-10-21T08:07:59.972Z",
+      "by": "Дида"
     }
   ]
 }
