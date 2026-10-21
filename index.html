@@ -81,13 +81,13 @@
       <h3>Доступ к загрузке</h3>
       <p class="hint" id="token-reason">Смотреть дизайны может кто угодно по ссылке. Чтобы загружать и менять, нужен пароль команды — вводится один раз и хранится только в этом браузере.</p>
       <div class="row">
-        <input class="input" id="token" type="password" placeholder="Пароль команды" autocomplete="off" spellcheck="false">
+        <input class="input secret" id="token" type="text" placeholder="Пароль команды" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocapitalize="off">
         <button class="btn primary" type="button" id="token-save">Сохранить</button>
       </div>
       <div class="status" id="token-status"></div>
       <label class="field">
         <span>Ваше имя — видно на карточках</span>
-        <input class="input" id="author" placeholder="Например, Дархан" autocomplete="name">
+        <input class="input" id="author" placeholder="Например, Дархан" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">
       </label>
     </section>
 
@@ -127,11 +127,11 @@
       <div class="upload-auth" id="upload-auth" hidden>
         <label class="field" id="upload-password-field">
           <span>Пароль команды — нужен один раз в этом браузере</span>
-          <input class="input" id="upload-password" type="password" autocomplete="off" spellcheck="false">
+          <input class="input secret" id="upload-password" type="text" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocapitalize="off">
         </label>
         <label class="field" id="upload-author-field">
           <span>Ваше имя — видно на карточках</span>
-          <input class="input" id="upload-author" placeholder="Например, Дархан" autocomplete="name">
+          <input class="input" id="upload-author" placeholder="Например, Дархан" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">
         </label>
       </div>
       <div class="status err" id="upload-status"></div>

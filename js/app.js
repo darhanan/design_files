@@ -409,12 +409,16 @@ function renderProgress() {
 $("#upload-list").addEventListener("input", e => {
   const row = e.target.closest(".upload-item");
   const it = upload.items[row.dataset.i];
+  $("#upload-status").textContent = "";
   if (e.target.dataset.k === "name") it.name = e.target.value;
   if (e.target.dataset.k === "category") {
     it.category = e.target.value;
     row.querySelector(".cat-hint").textContent = categoryHint(it);
   }
 });
+// A stale error goes away as soon as the designer starts fixing things.
+for (const id of ["#upload-password", "#upload-author"]) $(id).addEventListener("input", () => ($("#upload-status").textContent = ""));
+
 $("#upload-list").addEventListener("click", e => {
   const i = e.target.closest("[data-remove]")?.dataset.remove;
   if (i == null) return;
