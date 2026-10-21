@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Files</title>
+<!-- Full-page view of one design. The design runs in a sandboxed iframe (its own opaque origin),
+     so its scripts can't read this site's storage, where the GitHub token lives. -->
+<style>
+html, body { height: 100%; margin: 0; background: #fff; }
+iframe { display: block; width: 100%; height: 100%; border: 0; }
+p { font: 15px/1.5 system-ui, sans-serif; color: #666; text-align: center; margin-top: 40vh; }
+</style>
+</head>
+<body>
+<script>
+const file = new URLSearchParams(location.search).get("f") || "";
+if (/^designs\/[a-z0-9-]+\.html$/.test(file)) {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-scripts allow-popups allow-forms allow-modals");
+  frame.title = "Дизайн";
+  frame.src = file + (new URLSearchParams(location.search).has("v") ? "?v=" + encodeURIComponent(new URLSearchParams(location.search).get("v")) : "");
+  document.body.appendChild(frame);
+  document.title = file.slice(8, -5) + " · Design Files";
+} else {
+  document.body.innerHTML = "<p>Дизайн не найден</p>";
+}
+</script>
+</body>
+</html>

@@ -53,10 +53,18 @@ function prettyFileName(fileName) {
   return s ? s[0].toUpperCase() + s.slice(1) : "Без названия";
 }
 
+// Cyrillic (Russian + Kazakh) to Latin, so "макет.html" and "дизайн.html" don't both become "design".
+const TRANSLIT = Object.fromEntries(
+  "а:a б:b в:v г:g д:d е:e ё:e ж:zh з:z и:i й:y к:k л:l м:m н:n о:o п:p р:r с:s т:t у:u ф:f х:h ц:ts ч:ch ш:sh щ:sch ъ: ы:y ь: э:e ю:yu я:ya ә:a ғ:g қ:k ң:n ө:o ұ:u ү:u һ:h і:i"
+    .split(" ")
+    .map(p => p.split(":")),
+);
+
 export function slugify(fileName) {
   return (
     baseName(fileName)
       .toLowerCase()
+      .replace(/[Ѐ-ӿ]/g, c => TRANSLIT[c] ?? "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 60) || "design"

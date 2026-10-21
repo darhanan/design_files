@@ -218,7 +218,8 @@ function openViewer(d) {
   else { frame.removeAttribute("srcdoc"); frame.src = fileUrl(d); }
   $("#viewer-download").href = d.file;
   $("#viewer-download").setAttribute("download", d.originalName || `${d.id}.html`);
-  $("#viewer-newtab").href = d.file;
+  // Never open the raw file directly: it would run on this origin and could read the token.
+  $("#viewer-newtab").href = `view.html?f=${encodeURIComponent(d.file)}&v=${encodeURIComponent(d.updatedAt)}`;
   const sel = $("#viewer-category");
   sel.innerHTML = allCategories().map(c => `<option value="${esc(c.id)}"${c.id === d.category ? " selected" : ""}>${esc(c.name)}</option>`).join("");
   sel.dataset.id = d.id;
@@ -287,6 +288,7 @@ async function uploadFiles(fileList) {
   if (!ok.length || needToken(ok)) return;
 
   const progress = toast(ok.length === 1 ? `Загружаю «${ok[0].name}»…` : `Загружаю ${ok.length} файла…`, { spinner: true, timeout: 0 });
+  let batch = [];
   try {
     const now = new Date().toISOString();
     const items = await Promise.all(
@@ -295,13 +297,14 @@ async function uploadFiles(fileList) {
         const text = new TextDecoder().decode(bytes);
         const info = analyze(text, f.name);
         const { category } = classify(info, state.categories);
-        const id = slugify(f.name);
+        // Re-uploading the same file name updates that design, whatever its id was derived from.
+        const id = state.designs.find(d => d.originalName === f.name)?.id || slugify(f.name);
         return { id, text, base64: bytesToBase64(bytes), info, category, f };
       }),
     );
     // Two files with the same name in one batch: keep the last one.
     const byId = new Map(items.map(i => [i.id, i]));
-    const batch = [...byId.values()];
+    batch = [...byId.values()];
     // Show the uploaded copy right away; GitHub Pages needs a minute to publish the file.
     for (const it of batch) { state.local.set(it.id, it.text); state.fresh.add(it.id); }
 
@@ -344,7 +347,7 @@ async function uploadFiles(fileList) {
     }
     document.querySelector(`.card[data-id="${CSS.escape(batch[0].id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (e) {
-    for (const f of ok) { const id = slugify(f.name); state.local.delete(id); state.fresh.delete(id); }
+    for (const it of batch) { state.local.delete(it.id); state.fresh.delete(it.id); }
     progress.remove();
     toast(`Не загрузилось: ${e.message}`, { kind: "err", timeout: 10000 });
   }
