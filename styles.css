@@ -126,7 +126,9 @@ main { padding: 8px 32px 64px; }
 .info { flex: 1; min-width: 0; }
 .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.more { color: var(--muted); }
+.more, .dl { color: var(--muted); }
+.dl:hover, .more:hover { color: var(--text); }
+.meta .dl { margin-right: -8px; }
 
 /* ── Empty state ─────────────────────────── */
 .empty {

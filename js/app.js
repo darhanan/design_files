@@ -182,7 +182,7 @@ function cardFor(d) {
 function metaHtml(d) {
   const platforms = (d.platforms || []).map(p => PLATFORM_LABEL[p] || p).join(", ");
   const sub = [platforms, ago(d.updatedAt), d.by].filter(Boolean).join(" · ");
-  return `<span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="info"><div class="name" title="${esc(d.name)}">${esc(d.name)}</div><div class="sub" title="${esc(sub)}">${esc(sub)}</div></div><button class="btn ghost icon-only more" data-menu="${esc(d.id)}" aria-label="Действия"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"></circle><circle cx="12" cy="12" r="1.8" fill="currentColor"></circle><circle cx="19" cy="12" r="1.8" fill="currentColor"></circle></svg></button>`;
+  return `<span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="info"><div class="name" title="${esc(d.name)}">${esc(d.name)}</div><div class="sub" title="${esc(sub)}">${esc(sub)}</div></div><button class="btn ghost icon-only dl" data-download="${esc(d.id)}" title="Скачать HTML" aria-label="Скачать"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button class="btn ghost icon-only more" data-menu="${esc(d.id)}" aria-label="Действия"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"></circle><circle cx="12" cy="12" r="1.8" fill="currentColor"></circle><circle cx="19" cy="12" r="1.8" fill="currentColor"></circle></svg></button>`;
 }
 
 // Search and the category chips only show and hide what is already on the page.
@@ -215,6 +215,16 @@ function applyFilter() {
 }
 
 const fileUrl = d => `${d.file}?v=${encodeURIComponent(d.updatedAt)}`;
+
+// A design uploaded a moment ago may not be published yet, so it downloads from the copy kept in memory.
+function downloadDesign(d) {
+  const local = state.local.get(d.id);
+  const a = document.createElement("a");
+  a.href = local ? URL.createObjectURL(new Blob([local], { type: "text/html" })) : fileUrl(d);
+  a.download = d.originalName || `${d.id}.html`;
+  a.click();
+  if (local) setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
 
 // Previews are live, scaled-down pages; each loads once it scrolls near the screen.
 const sizer = new ResizeObserver(entries => {
@@ -738,13 +748,15 @@ $("#chips").addEventListener("click", e => {
 
 $("#main").addEventListener("click", e => {
   if (e.target.closest("[data-action=upload]")) return openUpload();
+  const dl = e.target.closest("[data-download]");
+  if (dl) return downloadDesign(state.designs.find(d => d.id === dl.dataset.download));
   const more = e.target.closest("[data-menu]");
   if (more) { e.stopPropagation(); return $("#menu").hidden || $("#menu").dataset.id !== more.dataset.menu ? openMenu(more.dataset.menu, more) : closeMenu(); }
   const card = e.target.closest(".card");
   if (card) openViewer(state.designs.find(d => d.id === card.dataset.id));
 });
 $("#main").addEventListener("keydown", e => {
-  if (e.key !== "Enter" || e.target.closest("[data-menu]")) return;
+  if (e.key !== "Enter" || e.target.closest("[data-menu], [data-download]")) return;
   if (e.target.closest("[data-action=upload]")) return openUpload();
   const card = e.target.closest(".card");
   if (card) openViewer(state.designs.find(d => d.id === card.dataset.id));
