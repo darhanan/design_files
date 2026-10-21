@@ -1,0 +1,25 @@
+{
+  "designs": [
+    {
+      "id": "rate-app-live",
+      "name": "Rate the app",
+      "autoName": true,
+      "originalName": "rate-app-liveі.html",
+      "file": "designs/rate-app-live.html",
+      "category": "edu-page",
+      "autoCategory": true,
+      "platforms": [
+        "ios",
+        "android"
+      ],
+      "screens": [
+        "lesson-complete",
+        "rate-on-play"
+      ],
+      "size": 867558,
+      "createdAt": "2026-10-21T05:47:27.755Z",
+      "updatedAt": "2026-10-21T05:47:27.755Z",
+      "by": "darhanan"
+    }
+  ]
+}

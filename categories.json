@@ -1,0 +1,62 @@
+[
+  {
+    "id": "apps-tools",
+    "name": "Apps / Tools",
+    "topics": ["Chat", "Assistants", "Automation", "Apps", "Mentor", "Prompts lib"],
+    "keywords": ["assistant", "ask mentor", "ai chat", "prompt", "prompts", "prompt library", "tools", "tool", "app library", "chatbot"]
+  },
+  {
+    "id": "edu-page",
+    "name": "Edu page",
+    "topics": ["Academy", "Practice", "Congrats pages", "Error states", "Feedback culture", "Exercises"],
+    "keywords": ["lesson", "lessons", "lesson complete", "congrats", "congratulations", "error state", "error", "feedback", "exercise", "quiz question", "correct answer", "wrong answer", "rate the app", "rate us"]
+  },
+  {
+    "id": "gamification",
+    "name": "Gamification",
+    "topics": ["Challenges", "Daily mission", "Awards", "Interactive Practices (exercises/games)", "XP and Leaderboard"],
+    "keywords": ["challenge", "mission", "award", "badge", "badges", "interactive practice", "game", "games", "xp", "leaderboard", "league", "rank", "reward", "rewards"]
+  },
+  {
+    "id": "pq-score",
+    "name": "PQ Score",
+    "topics": [],
+    "keywords": ["pq score", "pq", "prompt quotient", "score", "assessment", "skill score"]
+  },
+  {
+    "id": "upsell",
+    "name": "Upsell",
+    "topics": ["Lifetime access", "Reactivation v2", "AI for kids"],
+    "keywords": ["upsell", "lifetime", "reactivation", "ai for kids", "kids", "paywall", "offer", "special offer", "discount", "trial", "pricing", "upgrade", "subscribe", "plan price"]
+  },
+  {
+    "id": "community",
+    "name": "Community",
+    "topics": [],
+    "keywords": ["community", "feed", "post", "posts", "comment", "comments", "forum", "members", "discussion", "reply"]
+  },
+  {
+    "id": "academy",
+    "name": "Academy",
+    "topics": ["Project", "Automation", "Certificates", "Personal Plan", "Levels", "Streaks", "Personalization in modules", "Live activity", "Share", "Portfolio"],
+    "keywords": ["academy", "projects", "certificate", "personal plan", "my plan", "level", "streak", "personalization", "module", "modules", "live activity", "portfolio", "course", "courses"]
+  },
+  {
+    "id": "funnel-auth",
+    "name": "Funnel/Auth",
+    "topics": ["Funnel", "Sign Up", "Log In", "Onboarding"],
+    "keywords": ["funnel", "sign up", "signup", "log in", "login", "sign in", "onboarding", "auth", "password", "registration", "create account", "welcome", "magic link"]
+  },
+  {
+    "id": "profile",
+    "name": "Profile",
+    "topics": ["Settings", "Learning insights", "Certificates", "Unsubscribe flow", "Preferences", "Edit profile"],
+    "keywords": ["profile", "settings", "learning insights", "insights", "unsubscribe", "cancel subscription", "preferences", "edit profile", "account", "delete account", "notifications settings"]
+  },
+  {
+    "id": "home",
+    "name": "Home",
+    "topics": ["Tab-bar", "Stories"],
+    "keywords": ["home", "tab bar", "tabbar", "tab-bar", "stories", "story", "dashboard", "home screen"]
+  }
+]
