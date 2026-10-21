@@ -47,6 +47,56 @@
       "createdAt": "2026-10-21T07:00:51.116Z",
       "updatedAt": "2026-10-21T07:00:51.116Z",
       "by": "Дархан"
+    },
+    {
+      "id": "family-4-1",
+      "name": "Family smoke test",
+      "autoName": true,
+      "originalName": "family_4 (1).html",
+      "file": "designs/family-4-1.html",
+      "category": "upsell",
+      "autoCategory": false,
+      "platforms": [],
+      "screens": [],
+      "size": 3421814,
+      "createdAt": "2026-10-21T07:05:35.352Z",
+      "updatedAt": "2026-10-21T07:05:35.352Z",
+      "by": "Дархан"
+    },
+    {
+      "id": "personal-plan-get-the-app-4-1",
+      "name": "Personal Plan",
+      "autoName": true,
+      "originalName": "personal-plan-get-the-app_4 (1).html",
+      "file": "designs/personal-plan-get-the-app-4-1.html",
+      "category": "academy",
+      "autoCategory": true,
+      "platforms": [],
+      "screens": [],
+      "size": 1248428,
+      "createdAt": "2026-10-21T07:05:35.352Z",
+      "updatedAt": "2026-10-21T07:05:35.352Z",
+      "by": "Дархан"
+    },
+    {
+      "id": "my-plan-reminders-ios123-1",
+      "name": "My plan reminders",
+      "autoName": true,
+      "originalName": "my-plan-reminders-ios123 (1).html",
+      "file": "designs/my-plan-reminders-ios123-1.html",
+      "category": "academy",
+      "autoCategory": true,
+      "platforms": [
+        "ios"
+      ],
+      "screens": [
+        "my-plan",
+        "my-plan-reminders-on"
+      ],
+      "size": 683327,
+      "createdAt": "2026-10-21T07:05:35.352Z",
+      "updatedAt": "2026-10-21T07:05:35.352Z",
+      "by": "Дархан"
     }
   ]
 }
