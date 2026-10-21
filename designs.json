@@ -20,6 +20,33 @@
       "createdAt": "2026-10-21T05:47:27.755Z",
       "updatedAt": "2026-10-21T05:47:27.755Z",
       "by": "darhanan"
+    },
+    {
+      "id": "ai-chat-live-80-1",
+      "name": "AI chat",
+      "autoName": true,
+      "originalName": "ai-chat-live_80 (1).html",
+      "file": "designs/ai-chat-live-80-1.html",
+      "category": "apps-tools",
+      "autoCategory": true,
+      "platforms": [
+        "web",
+        "ios"
+      ],
+      "screens": [
+        "ai-chat",
+        "ai-chat-conversation",
+        "ai-chat-image",
+        "ai-chat-video",
+        "ai-chat",
+        "ai-chat-conversation",
+        "ai-chat-image",
+        "ai-chat-video"
+      ],
+      "size": 20022852,
+      "createdAt": "2026-10-21T07:00:51.116Z",
+      "updatedAt": "2026-10-21T07:00:51.116Z",
+      "by": "Дархан"
     }
   ]
 }
