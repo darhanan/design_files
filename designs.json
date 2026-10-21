@@ -65,8 +65,8 @@
     },
     {
       "id": "personal-plan-get-the-app-4-1",
-      "name": "Personal Plan",
-      "autoName": true,
+      "name": "WEB2APP",
+      "autoName": false,
       "originalName": "personal-plan-get-the-app_4 (1).html",
       "file": "designs/personal-plan-get-the-app-4-1.html",
       "category": "academy",
