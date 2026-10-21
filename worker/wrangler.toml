@@ -5,4 +5,4 @@ compatibility_date = "2026-06-01"
 [vars]
 REPO = "darhanan/design_files"
 BRANCH = "main"
-ORIGINS = "https://darhanan.github.io"
+ORIGINS = "https://darhanan.github.io,https://designfiles-dun.vercel.app"
