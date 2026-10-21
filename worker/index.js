@@ -32,7 +32,8 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": okOrigin ? origin : origins[0],
       "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+      // Echo what the browser asks for: Safari adds Cache-Control/Pragma to some requests, Chrome doesn't.
+      "Access-Control-Allow-Headers": request.headers.get("Access-Control-Request-Headers") || "Authorization, Content-Type, Accept",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     };

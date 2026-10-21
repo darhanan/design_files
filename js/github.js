@@ -28,7 +28,6 @@ export class GitHub {
   async api(path, { method = "GET", body } = {}) {
     const res = await fetch(API + path, {
       method,
-      cache: "no-store",
       headers: {
         Accept: "application/vnd.github+json",
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
