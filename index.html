@@ -103,28 +103,43 @@
   </form>
 </dialog>
 
-<!-- Upload confirmation: auto-detected name and category, both editable -->
-<dialog class="modal wide" id="confirm">
-  <form method="dialog" class="modal-inner" id="confirm-form">
-    <div class="modal-head">
-      <h2 id="confirm-title">Загрузка</h2>
-      <button class="btn ghost icon-only" value="cancel" formnovalidate aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+<!-- Upload: drop zone + file list with auto-detected name and category, both editable -->
+<dialog class="modal upload" id="upload">
+  <form method="dialog" class="upload-inner" id="upload-form">
+    <button class="btn ghost icon-only upload-close" value="cancel" formnovalidate aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <header class="upload-head">
+      <h2>Загрузка дизайнов</h2>
+      <p>Категория определится автоматически — её можно поменять.</p>
+    </header>
+
+    <div class="upload-card">
+      <button class="dropzone" type="button" id="dropzone">
+        <span class="dz-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="dz-title">Перетащите HTML-файлы сюда или <u>выберите</u></span>
+        <span class="dz-sub">Файлы .html, до 50 МБ каждый</span>
+      </button>
+
+      <div class="uploads" id="uploads" hidden>
+        <div class="uploads-label">Файлы</div>
+        <div class="upload-list" id="upload-list"></div>
+      </div>
+
+      <div class="upload-auth" id="upload-auth" hidden>
+        <label class="field" id="upload-password-field">
+          <span>Пароль команды — нужен один раз в этом браузере</span>
+          <input class="input" id="upload-password" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field" id="upload-author-field">
+          <span>Ваше имя — видно на карточках</span>
+          <input class="input" id="upload-author" placeholder="Например, Дархан" autocomplete="name">
+        </label>
+      </div>
+      <div class="status err" id="upload-status"></div>
     </div>
-    <div class="confirm-list" id="confirm-list"></div>
-    <div class="confirm-auth" id="confirm-auth">
-      <label class="field">
-        <span>Пароль команды — нужен один раз в этом браузере</span>
-        <input class="input" id="confirm-password" type="password" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="field">
-        <span>Ваше имя — видно на карточках</span>
-        <input class="input" id="confirm-author" placeholder="Например, Дархан" autocomplete="name">
-      </label>
-    </div>
-    <div class="status err" id="confirm-status"></div>
-    <div class="row end">
-      <button class="btn ghost" value="cancel" formnovalidate>Отмена</button>
-      <button class="btn primary" type="button" id="confirm-ok">Загрузить</button>
+
+    <div class="upload-actions">
+      <button class="btn pill secondary" type="button" id="upload-cancel">Отмена</button>
+      <button class="btn pill primary" type="button" id="upload-ok" disabled>Загрузить</button>
     </div>
   </form>
 </dialog>

@@ -11,6 +11,14 @@ export function bytesToBase64(bytes) {
   return btoa(bin);
 }
 
+function httpError(status, message) {
+  const err = new Error(`GitHub ${status}: ${message}`);
+  err.status = status;
+  return err;
+}
+
+const abortError = () => Object.assign(new Error("Загрузка отменена"), { name: "AbortError" });
+
 export class GitHub {
   // `password` is the team password; the proxy swaps it for the real GitHub token.
   constructor(password) {
@@ -28,11 +36,7 @@ export class GitHub {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) {
-      const err = new Error(`GitHub ${res.status}: ${(await res.json().catch(() => ({}))).message || res.statusText}`);
-      err.status = res.status;
-      throw err;
-    }
+    if (!res.ok) throw httpError(res.status, (await res.json().catch(() => ({}))).message || res.statusText);
     return res.status === 204 ? null : res.json();
   }
 
@@ -55,18 +59,38 @@ export class GitHub {
     }
   }
 
-  async blob(base64) {
-    return (await this.api(`${repoPath}/git/blobs`, { method: "POST", body: { content: base64, encoding: "base64" } })).sha;
+  // XHR rather than fetch: only XHR reports upload progress.
+  blob(base64, { onProgress, signal } = {}) {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) return reject(abortError());
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API}${repoPath}/git/blobs`);
+      xhr.setRequestHeader("Accept", "application/vnd.github+json");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (this.token) xhr.setRequestHeader("Authorization", `Bearer ${this.token}`);
+      xhr.upload.onprogress = e => e.lengthComputable && onProgress?.(e.loaded / e.total);
+      xhr.onload = () => {
+        let body = {};
+        try { body = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body.sha);
+        else reject(httpError(xhr.status, body.message || xhr.statusText));
+      };
+      xhr.onerror = () => reject(new Error("Нет соединения с сервером загрузки"));
+      xhr.onabort = () => reject(abortError());
+      signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+      xhr.send(JSON.stringify({ content: base64, encoding: "base64" }));
+    });
   }
 
   /**
    * One commit on the branch:
-   *  - `files`: [{ path, base64 }] added or replaced
+   *  - `files`: [{ path, base64, onProgress? }] added or replaced
+   *  - `signal`: aborting it before the branch moves leaves the repo untouched
    *  - `remove`: [path] deleted
    *  - `json`: { path: (current) => next } read-modify-write of JSON files, re-run if someone pushed meanwhile
    */
-  async commit({ message, files = [], remove = [], json = {} }) {
-    const uploaded = await Promise.all(files.map(async f => ({ path: f.path, sha: await this.blob(f.base64) })));
+  async commit({ message, files = [], remove = [], json = {}, signal }) {
+    const uploaded = await Promise.all(files.map(async f => ({ path: f.path, sha: await this.blob(f.base64, { onProgress: f.onProgress, signal }).then(sha => (f.onProgress?.(1), sha)) })));
     for (let attempt = 0; attempt < 5; attempt++) {
       const parent = await this.headSha();
       const baseTree = (await this.api(`${repoPath}/git/commits/${parent}`)).tree.sha;
@@ -82,6 +106,7 @@ export class GitHub {
       }
       const newTree = await this.api(`${repoPath}/git/trees`, { method: "POST", body: { base_tree: baseTree, tree } });
       const commit = await this.api(`${repoPath}/git/commits`, { method: "POST", body: { message, tree: newTree.sha, parents: [parent] } });
+      if (signal?.aborted) throw abortError();
       try {
         await this.api(`${repoPath}/git/refs/heads/${REPO.branch}`, { method: "PATCH", body: { sha: commit.sha, force: false } });
         return results;

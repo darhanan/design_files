@@ -287,14 +287,46 @@ async function saveManifest(message, update, extra = {}) {
   render();
 }
 
-async function uploadFiles(fileList) {
+// ── Upload modal ──────────────────────────────────────
+// Files are dropped or picked into the modal, each gets an auto name and category the designer can change,
+// then all of them go to the repo in one commit with per-file progress.
+
+const upload = { items: [], running: null }; // running: AbortController while saving
+
+const formatSize = bytes =>
+  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} КБ` : `${(bytes / 1024 / 1024).toFixed(1).replace(".0", "")} МБ`;
+
+const progressText = it =>
+  it.progress >= 1 ? "Загружено, сохраняю…" : it.progress > 0 ? `${formatSize(Math.round(it.progress * it.f.size))} из ${formatSize(it.f.size)}` : "Загружаю…";
+
+function categoryHint(it) {
+  if (it.category === it.auto) return "определена автоматически";
+  if (it.prev && !it.prev.autoCategory && it.category === it.prev.category) return "выбрана вручную раньше";
+  return `выбрана вручную · авто: ${categoryOf(it.auto).name}`;
+}
+
+function openUpload(files) {
+  if (!$("#upload").open) {
+    if (!upload.running) upload.items = [];
+    $("#upload-status").textContent = "";
+    $("#upload-password").value = "";
+    $("#upload-author").value = state.author;
+    renderUpload();
+    $("#upload").showModal();
+  }
+  if (files?.length) addFiles(files);
+}
+
+async function addFiles(fileList) {
+  if (upload.running) return;
   const files = [...fileList];
-  const html = files.filter(f => /\.html?$/i.test(f.name) || f.type === "text/html");
-  const skipped = files.length - html.length;
-  if (skipped) toast(`Пропущено файлов: ${skipped} — загружать можно только .html`, { kind: "err" });
-  const tooBig = html.filter(f => f.size > MAX_SIZE);
-  if (tooBig.length) toast(`Слишком большой файл (больше 50 МБ): ${tooBig.map(f => f.name).join(", ")}`, { kind: "err" });
-  const ok = html.filter(f => f.size <= MAX_SIZE);
+  const problems = [];
+  const ok = files.filter(f => {
+    if (!/\.html?$/i.test(f.name) && f.type !== "text/html") return problems.push(`«${f.name}» — не HTML`), false;
+    if (f.size > MAX_SIZE) return problems.push(`«${f.name}» больше 50 МБ`), false;
+    return true;
+  });
+  $("#upload-status").textContent = problems.length ? `Пропущено: ${problems.join(", ")}` : "";
   if (!ok.length) return;
 
   try {
@@ -308,125 +340,137 @@ async function uploadFiles(fileList) {
         const id = state.designs.find(d => d.originalName === f.name)?.id || slugify(f.name);
         const prev = state.designs.find(d => d.id === id);
         return {
-          id, text, base64: bytesToBase64(bytes), info, auto, prev, f,
+          id, text, base64: bytesToBase64(bytes), info, auto, prev, f, progress: 0,
           // A name or category someone picked by hand survives re-uploads; auto ones are re-detected.
           name: prev && !prev.autoName ? prev.name : info.name,
           category: prev && !prev.autoCategory ? prev.category : auto,
         };
       }),
     );
-    // Two files with the same name in one batch: keep the last one.
-    openConfirm([...new Map(items.map(i => [i.id, i])).values()]);
+    // The same file dropped twice replaces the earlier copy in the list.
+    for (const it of items) {
+      const i = upload.items.findIndex(x => x.id === it.id);
+      if (i === -1) upload.items.push(it);
+      else upload.items[i] = it;
+    }
+    renderUpload();
   } catch (e) {
-    toast(`Не удалось прочитать файл: ${e.message}`, { kind: "err", timeout: 10000 });
+    $("#upload-status").textContent = `Не удалось прочитать файл: ${e.message}`;
   }
 }
 
-// ── Upload confirmation ───────────────────────────────
-
-let confirmItems = [];
-
-function categoryHint(it) {
-  if (it.category === it.auto) return "Категория · определена автоматически";
-  if (it.prev && !it.prev.autoCategory && it.category === it.prev.category) return "Категория · выбрана вручную раньше";
-  return `Категория · выбрана вручную (авто — ${categoryOf(it.auto).name})`;
-}
-
-function openConfirm(items) {
-  confirmItems = items;
-  $("#confirm-title").textContent = items.length === 1 ? "Загрузка дизайна" : `Загрузка дизайнов: ${items.length}`;
+function renderUpload() {
+  const { items, running } = upload;
   const options = allCategories().map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
-  $("#confirm-list").innerHTML = items
+  $("#uploads").hidden = !items.length;
+  $("#upload-list").innerHTML = items
     .map((it, i) => {
       const platforms = it.info.platforms.map(p => PLATFORM_LABEL[p] || p).join(", ");
+      const sub = running ? progressText(it) : [formatSize(it.f.size), platforms].filter(Boolean).join(" · ");
       return `
-      <div class="confirm-item" data-i="${i}">
-        <div class="thumb"><div class="placeholder">Загружаю превью…</div></div>
-        <div class="confirm-fields">
-          <label class="field">
-            <span>Название${it.prev ? ` <b class="tag">обновит существующий</b>` : ""}</span>
-            <input class="input" data-k="name" value="${esc(it.name)}">
-          </label>
-          <label class="field">
-            <span class="cat-hint">${esc(categoryHint(it))}</span>
-            <select class="select" data-k="category">${options}</select>
-          </label>
-          <div class="file-line">${esc([it.f.name, platforms].filter(Boolean).join(" · "))}</div>
+      <div class="upload-item${running ? " running" : ""}" data-i="${i}">
+        <div class="upload-row">
+          <span class="file-type">HTML</span>
+          <div class="upload-info">
+            <input class="name-input" data-k="name" value="${esc(it.name)}" aria-label="Название" ${running ? "disabled" : ""}>
+            <div class="upload-sub">${esc(it.f.name)} · <span class="upload-meta">${esc(sub)}</span>${it.prev ? ` <b class="tag">обновит существующий</b>` : ""}</div>
+          </div>
+          ${running ? "" : `<button class="btn ghost icon-only" type="button" data-remove="${i}" title="Убрать" aria-label="Убрать файл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`}
         </div>
+        ${running
+          ? `<div class="progress"><span style="width:${(it.progress * 100).toFixed(1)}%"></span></div>`
+          : `<label class="cat-line"><span>Категория</span><select class="select" data-k="category">${options}</select><span class="cat-hint">${esc(categoryHint(it))}</span></label>`}
       </div>`;
     })
     .join("");
-  $("#confirm-list").querySelectorAll(".confirm-item").forEach((row, i) => {
-    row.querySelector("select").value = items[i].category;
-    const thumb = row.querySelector(".thumb");
-    const frame = document.createElement("iframe");
-    frame.setAttribute("sandbox", "allow-scripts");
-    frame.setAttribute("tabindex", "-1");
-    frame.srcdoc = items[i].text;
-    frame.addEventListener("load", () => thumb.querySelector(".placeholder")?.remove(), { once: true });
-    thumb.appendChild(frame);
-    sizer.observe(thumb);
-  });
+  $("#upload-list").querySelectorAll("select").forEach((s, i) => (s.value = items[i].category));
 
-  $("#confirm-password").value = "";
-  $("#confirm-password").closest(".field").hidden = !!state.token;
-  $("#confirm-author").value = state.author;
-  $("#confirm-author").closest(".field").hidden = !!state.author;
-  $("#confirm-auth").hidden = !!state.token && !!state.author;
-  $("#confirm-status").textContent = "";
-  $("#confirm").showModal();
-  $("#confirm-ok").focus();
+  const needPassword = !state.token, needAuthor = !state.author;
+  $("#upload-auth").hidden = !items.length || running || (!needPassword && !needAuthor);
+  $("#upload-password-field").hidden = !needPassword;
+  $("#upload-author-field").hidden = !needAuthor;
+  $("#dropzone").disabled = !!running;
+
+  const ok = $("#upload-ok");
+  ok.disabled = !items.length || !!running;
+  ok.textContent = running ? "Загружаю…" : items.length > 1 ? `Загрузить (${items.length})` : "Загрузить";
 }
 
-$("#confirm-list").addEventListener("input", e => {
-  const row = e.target.closest(".confirm-item");
-  const it = confirmItems[row.dataset.i];
+// Only the progress text and bars change while uploading; re-rendering would reset them mid-animation.
+function renderProgress() {
+  upload.items.forEach((it, i) => {
+    const row = $(`#upload-list [data-i="${i}"]`);
+    if (!row) return;
+    row.querySelector(".progress span").style.width = `${(it.progress * 100).toFixed(1)}%`;
+    row.querySelector(".upload-meta").textContent = progressText(it);
+  });
+}
+
+$("#upload-list").addEventListener("input", e => {
+  const row = e.target.closest(".upload-item");
+  const it = upload.items[row.dataset.i];
   if (e.target.dataset.k === "name") it.name = e.target.value;
   if (e.target.dataset.k === "category") {
     it.category = e.target.value;
     row.querySelector(".cat-hint").textContent = categoryHint(it);
   }
 });
-$("#confirm").addEventListener("close", () => { $("#confirm-list").innerHTML = ""; });
+$("#upload-list").addEventListener("click", e => {
+  const i = e.target.closest("[data-remove]")?.dataset.remove;
+  if (i == null) return;
+  upload.items.splice(i, 1);
+  renderUpload();
+});
 
-$("#confirm-ok").addEventListener("click", async () => {
-  const status = $("#confirm-status");
-  const btn = $("#confirm-ok");
+const input = $("#file-input");
+$("#dropzone").addEventListener("click", () => input.click());
+input.addEventListener("change", () => { if (input.files.length) openUpload(input.files); input.value = ""; });
+
+$("#upload-cancel").addEventListener("click", () => {
+  if (upload.running) upload.running.abort();
+  else $("#upload").close();
+});
+// Esc or ✕ while saving stops the upload instead of leaving it running unseen.
+$("#upload").addEventListener("cancel", e => { if (upload.running) { e.preventDefault(); upload.running.abort(); } });
+$("#upload-form").addEventListener("submit", e => { if (upload.running && e.submitter?.value === "cancel") { e.preventDefault(); upload.running.abort(); } });
+
+$("#upload-ok").addEventListener("click", async () => {
+  const status = $("#upload-status");
   status.textContent = "";
-  const unnamed = confirmItems.findIndex(it => !it.name.trim());
+  const unnamed = upload.items.findIndex(it => !it.name.trim());
   if (unnamed !== -1) {
     status.textContent = "Укажите название";
-    $(`#confirm-list [data-i="${unnamed}"] input`).focus();
+    $(`#upload-list [data-i="${unnamed}"] .name-input`).focus();
     return;
   }
   if (!state.token) {
-    const password = $("#confirm-password").value.trim();
-    if (!password) { status.textContent = "Введите пароль команды"; $("#confirm-password").focus(); return; }
-    btn.disabled = true;
+    const password = $("#upload-password").value.trim();
+    if (!password) { status.textContent = "Введите пароль команды"; $("#upload-password").focus(); return; }
+    $("#upload-ok").disabled = true;
     try {
       await new GitHub(password).check();
       setPassword(password);
     } catch (e) {
       status.textContent = e.status === 401 ? "Неверный пароль команды" : `Ошибка: ${e.message}`;
+      $("#upload-ok").disabled = false;
       return;
-    } finally {
-      btn.disabled = false;
     }
   }
-  const author = $("#confirm-author").value.trim();
+  const author = $("#upload-author").value.trim();
   if (author) setAuthor(author);
-  const items = confirmItems;
-  $("#confirm").close();
-  saveUploads(items);
+  saveUploads();
 });
 
-async function saveUploads(batch) {
-  const progress = toast(batch.length === 1 ? `Загружаю «${batch[0].name}»…` : `Загружаю ${batch.length} дизайна…`, { spinner: true, timeout: 0 });
+async function saveUploads() {
+  const batch = upload.items;
+  const controller = new AbortController();
+  upload.running = controller;
+  for (const it of batch) it.progress = 0;
+  renderUpload();
+  // Show the uploaded copy right away; GitHub Pages needs a minute to publish the file.
+  for (const it of batch) { state.local.set(it.id, it.text); state.fresh.add(it.id); }
   try {
     const now = new Date().toISOString();
-    // Show the uploaded copy right away; GitHub Pages needs a minute to publish the file.
-    for (const it of batch) { state.local.set(it.id, it.text); state.fresh.add(it.id); }
-
     await saveManifest(
       batch.length === 1 ? `Upload ${batch[0].f.name}` : `Upload ${batch.length} designs`,
       m => {
@@ -452,21 +496,30 @@ async function saveUploads(batch) {
         }
         return m;
       },
-      { files: batch.map(it => ({ path: `${DESIGNS_DIR}/${it.id}.html`, base64: it.base64 })) },
+      {
+        signal: controller.signal,
+        files: batch.map(it => ({
+          path: `${DESIGNS_DIR}/${it.id}.html`,
+          base64: it.base64,
+          onProgress: p => { it.progress = p; renderProgress(); },
+        })),
+      },
     );
-
-    progress.remove();
+    upload.running = null;
+    upload.items = [];
+    $("#upload").close();
     for (const it of batch) {
       const d = state.designs.find(x => x.id === it.id);
-      const cat = categoryOf(d.category);
-      toast(`«${d.name}» загружен в «${cat.name}»`, { timeout: 6000 });
+      toast(`«${d.name}» загружен в «${categoryOf(d.category).name}»`, { timeout: 6000 });
     }
     document.querySelector(`.card[data-id="${CSS.escape(batch[0].id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (e) {
     for (const it of batch) { state.local.delete(it.id); state.fresh.delete(it.id); }
-    progress.remove();
-    if (e.status === 401) setPassword(""); // password changed: ask again next time
-    toast(`Не загрузилось: ${e.status === 401 ? "неверный пароль команды" : e.message}`, { kind: "err", timeout: 10000 });
+    upload.running = null;
+    if (e.status === 401) setPassword(""); // password changed: ask again
+    renderUpload();
+    $("#upload-status").textContent =
+      e.name === "AbortError" ? "Загрузка отменена — ничего не сохранено" : `Не загрузилось: ${e.status === 401 ? "неверный пароль команды" : e.message}`;
   }
 }
 
@@ -647,10 +700,7 @@ $("#cat-save").addEventListener("click", async () => {
 
 // ── Events ────────────────────────────────────────────
 
-const input = $("#file-input");
-const pickFiles = () => input.click();
-$("#upload-btn").addEventListener("click", pickFiles);
-input.addEventListener("change", () => { if (input.files.length) uploadFiles(input.files); input.value = ""; });
+$("#upload-btn").addEventListener("click", () => openUpload());
 $("#open-settings").addEventListener("click", () => openSettings());
 
 $("#search").addEventListener("input", e => { state.query = e.target.value.trim(); applyFilter(); });
@@ -663,7 +713,7 @@ $("#chips").addEventListener("click", e => {
 });
 
 $("#main").addEventListener("click", e => {
-  if (e.target.closest("[data-action=upload]")) return pickFiles();
+  if (e.target.closest("[data-action=upload]")) return openUpload();
   const more = e.target.closest("[data-menu]");
   if (more) { e.stopPropagation(); return $("#menu").hidden || $("#menu").dataset.id !== more.dataset.menu ? openMenu(more.dataset.menu, more) : closeMenu(); }
   const card = e.target.closest(".card");
@@ -671,7 +721,7 @@ $("#main").addEventListener("click", e => {
 });
 $("#main").addEventListener("keydown", e => {
   if (e.key !== "Enter" || e.target.closest("[data-menu]")) return;
-  if (e.target.closest("[data-action=upload]")) return pickFiles();
+  if (e.target.closest("[data-action=upload]")) return openUpload();
   const card = e.target.closest(".card");
   if (card) openViewer(state.designs.find(d => d.id === card.dataset.id));
 });
@@ -684,23 +734,28 @@ document.addEventListener("keydown", e => {
   else if (!$("#viewer").hidden) closeViewer();
 });
 
-// Drag & drop anywhere on the page.
+// Drag & drop anywhere: on the page it opens the upload modal, inside the modal it lights up the drop zone.
 let dragDepth = 0;
 const hasFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
-window.addEventListener("dragenter", e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $("#drop-overlay").hidden = false; });
+const setDragging = on => {
+  const inModal = $("#upload").open;
+  $("#drop-overlay").hidden = !on || inModal;
+  $("#dropzone").classList.toggle("over", on && inModal && !upload.running);
+};
+window.addEventListener("dragenter", e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; setDragging(true); });
 window.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
-window.addEventListener("dragleave", e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; $("#drop-overlay").hidden = true; } });
+window.addEventListener("dragleave", e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; setDragging(false); } });
 window.addEventListener("drop", e => {
   if (!hasFiles(e)) return;
   e.preventDefault();
   dragDepth = 0;
-  $("#drop-overlay").hidden = true;
-  uploadFiles(e.dataTransfer.files);
+  setDragging(false);
+  openUpload(e.dataTransfer.files);
 });
 
 // Pick up teammates' uploads when coming back to the tab.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && $("#viewer").hidden && !$("#settings").open) load();
+  if (document.visibilityState === "visible" && $("#viewer").hidden && !$("#settings").open && !$("#upload").open) load();
 });
 
 load();
