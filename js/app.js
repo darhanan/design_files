@@ -152,7 +152,8 @@ function cardFor(d) {
 
 function metaHtml(d) {
   const platforms = (d.platforms || []).map(p => PLATFORM_LABEL[p] || p).join(", ");
-  const sub = [platforms, ago(d.updatedAt), d.by].filter(Boolean).join(" · ");
+  // Name and time first: on narrow cards the platforms are what gets cut off.
+  const sub = [d.by, ago(d.updatedAt), platforms].filter(Boolean).join(" · ");
   return `<span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="info"><div class="name" title="${esc(d.name)}">${esc(d.name)}</div><div class="sub" title="${esc(sub)}">${esc(sub)}</div></div><button class="btn ghost icon-only dl" data-download="${esc(d.id)}" title="Скачать HTML" aria-label="Скачать"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button class="btn ghost icon-only more" data-menu="${esc(d.id)}" aria-label="Действия"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"></circle><circle cx="12" cy="12" r="1.8" fill="currentColor"></circle><circle cx="19" cy="12" r="1.8" fill="currentColor"></circle></svg></button>`;
 }
 
