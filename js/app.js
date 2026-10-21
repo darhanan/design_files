@@ -34,6 +34,28 @@ function setPassword(password) {
   gh = new GitHub(password);
   store.set(PASSWORD_KEY, password || null);
 }
+// Russian layout → the Latin keys under it, so "вшвфдуфв" typed by mistake still means "didalead".
+const RU_KEYS = "йцукенгшщзхъфывапролджэячсмитьбюё";
+const EN_KEYS = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
+const fromRussianLayout = s =>
+  s.replace(/[а-яё]/gi, c => {
+    const en = EN_KEYS[RU_KEYS.indexOf(c.toLowerCase())];
+    return c === c.toLowerCase() ? en : en.toUpperCase();
+  });
+
+// Checks the team password with the proxy and remembers it; throws an error with a message fit for the UI.
+async function verifyPassword(raw) {
+  const password = fromRussianLayout(raw.trim());
+  // Browsers refuse non-Latin header values outright (Safari just says "Type error").
+  if (/[^\x20-\x7e]/.test(password)) throw new Error("Пароль набирается латиницей — переключите раскладку");
+  try {
+    await new GitHub(password).check();
+  } catch (e) {
+    throw new Error(e.status === 401 ? "Неверный пароль команды" : e.status ? `Ошибка: ${e.message}` : "Нет связи с сервером загрузки — проверьте интернет");
+  }
+  setPassword(password);
+}
+
 function setAuthor(name) {
   state.author = name;
   store.set(AUTHOR_KEY, name || null);
@@ -448,14 +470,13 @@ $("#upload-ok").addEventListener("click", async () => {
     return;
   }
   if (!state.token) {
-    const password = $("#upload-password").value.trim();
-    if (!password) { status.textContent = "Введите пароль команды"; $("#upload-password").focus(); return; }
+    const password = $("#upload-password").value;
+    if (!password.trim()) { status.textContent = "Введите пароль команды"; $("#upload-password").focus(); return; }
     $("#upload-ok").disabled = true;
     try {
-      await new GitHub(password).check();
-      setPassword(password);
+      await verifyPassword(password);
     } catch (e) {
-      status.textContent = e.status === 401 ? "Неверный пароль команды" : `Ошибка: ${e.message}`;
+      status.textContent = e.message;
       $("#upload-ok").disabled = false;
       return;
     }
@@ -608,21 +629,20 @@ function openSettings(reason) {
 $("#author").addEventListener("change", e => setAuthor(e.target.value.trim()));
 
 $("#token-save").addEventListener("click", async () => {
-  const password = $("#token").value.trim();
+  const password = $("#token").value;
   const status = $("#token-status");
-  if (!password) {
+  if (!password.trim()) {
     setPassword("");
     status.className = "status"; status.textContent = "Пароль удалён из этого браузера";
     return;
   }
   status.className = "status"; status.textContent = "Проверяю…";
   try {
-    await new GitHub(password).check();
-    setPassword(password);
+    await verifyPassword(password);
     status.className = "status ok"; status.textContent = "Пароль сохранён — можно загружать";
   } catch (e) {
     status.className = "status err";
-    status.textContent = e.status === 401 ? "Неверный пароль команды" : `Ошибка: ${e.message}`;
+    status.textContent = e.message;
   }
 });
 
