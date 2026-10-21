@@ -1,0 +1,8 @@
+name = "design-files"
+main = "index.js"
+compatibility_date = "2026-06-01"
+
+[vars]
+REPO = "darhanan/design_files"
+BRANCH = "main"
+ORIGINS = "https://darhanan.github.io"

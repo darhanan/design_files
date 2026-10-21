@@ -236,3 +236,21 @@ main { padding: 8px 32px 64px; }
   .viewer-actions .select { max-width: 130px; }
   .toasts { left: 16px; right: 16px; }
 }
+
+/* ── Upload confirmation ─────────────────── */
+.modal.wide { width: min(760px, calc(100vw - 32px)); }
+.field { display: grid; gap: 6px; margin-top: 12px; }
+.field[hidden], .confirm-auth[hidden] { display: none; }
+.field > span { color: var(--muted); font-size: 13px; }
+.field .input { flex: none; width: 100%; }
+.field .select { width: 100%; }
+.tag { margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 500; }
+.confirm-list { display: grid; gap: 16px; margin-top: 16px; max-height: 60vh; overflow-y: auto; }
+.confirm-item { display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); }
+.confirm-item .thumb { border-radius: 10px; align-self: start; }
+.confirm-item .field:first-child { margin-top: 0; }
+.file-line { margin-top: 10px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.confirm-auth { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--border); }
+@media (max-width: 720px) {
+  .confirm-item { grid-template-columns: minmax(0, 1fr); }
+}

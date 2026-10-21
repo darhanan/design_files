@@ -79,17 +79,16 @@
 
     <section class="modal-section">
       <h3>Доступ к загрузке</h3>
-      <p class="hint" id="token-reason">Смотреть дизайны может кто угодно по ссылке. Чтобы загружать, нужен GitHub-токен с доступом к репозиторию — вводится один раз и хранится только в этом браузере.</p>
-      <ol class="steps">
-        <li>Откройте <a href="https://github.com/settings/tokens/new?scopes=repo&description=Design%20Files" target="_blank" rel="noopener">создание токена</a> (галочка <b>repo</b> уже стоит), срок — «No expiration» или подольше.</li>
-        <li>Нажмите <b>Generate token</b> и вставьте его сюда.</li>
-        <li>У вас должен быть доступ на запись в <a id="repo-link" target="_blank" rel="noopener"></a> — попросите владельца добавить вас в Collaborators.</li>
-      </ol>
+      <p class="hint" id="token-reason">Смотреть дизайны может кто угодно по ссылке. Чтобы загружать и менять, нужен пароль команды — вводится один раз и хранится только в этом браузере.</p>
       <div class="row">
-        <input class="input" id="token" type="password" placeholder="ghp_…" autocomplete="off" spellcheck="false">
-        <button class="btn primary" type="button" id="token-save">Подключить</button>
+        <input class="input" id="token" type="password" placeholder="Пароль команды" autocomplete="off" spellcheck="false">
+        <button class="btn primary" type="button" id="token-save">Сохранить</button>
       </div>
       <div class="status" id="token-status"></div>
+      <label class="field">
+        <span>Ваше имя — видно на карточках</span>
+        <input class="input" id="author" placeholder="Например, Дархан" autocomplete="name">
+      </label>
     </section>
 
     <section class="modal-section">
@@ -101,6 +100,32 @@
         <button class="btn primary" type="button" id="cat-save">Сохранить категории</button>
       </div>
     </section>
+  </form>
+</dialog>
+
+<!-- Upload confirmation: auto-detected name and category, both editable -->
+<dialog class="modal wide" id="confirm">
+  <form method="dialog" class="modal-inner" id="confirm-form">
+    <div class="modal-head">
+      <h2 id="confirm-title">Загрузка</h2>
+      <button class="btn ghost icon-only" value="cancel" formnovalidate aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="confirm-list" id="confirm-list"></div>
+    <div class="confirm-auth" id="confirm-auth">
+      <label class="field">
+        <span>Пароль команды — нужен один раз в этом браузере</span>
+        <input class="input" id="confirm-password" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>Ваше имя — видно на карточках</span>
+        <input class="input" id="confirm-author" placeholder="Например, Дархан" autocomplete="name">
+      </label>
+    </div>
+    <div class="status err" id="confirm-status"></div>
+    <div class="row end">
+      <button class="btn ghost" value="cancel" formnovalidate>Отмена</button>
+      <button class="btn primary" type="button" id="confirm-ok">Загрузить</button>
+    </div>
   </form>
 </dialog>
 

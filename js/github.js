@@ -1,7 +1,5 @@
-// Minimal GitHub API client: reads JSON from the repo and writes several files in one commit.
-import { REPO } from "./config.js";
-
-const API = "https://api.github.com";
+// Minimal GitHub API client (through the upload proxy): reads JSON from the repo and writes several files in one commit.
+import { REPO, API } from "./config.js";
 const repoPath = `/repos/${REPO.owner}/${REPO.name}`;
 
 const utf8ToBase64 = s => bytesToBase64(new TextEncoder().encode(s));
@@ -14,8 +12,9 @@ export function bytesToBase64(bytes) {
 }
 
 export class GitHub {
-  constructor(token) {
-    this.token = token;
+  // `password` is the team password; the proxy swaps it for the real GitHub token.
+  constructor(password) {
+    this.token = password;
   }
 
   async api(path, { method = "GET", body } = {}) {
@@ -37,10 +36,9 @@ export class GitHub {
     return res.status === 204 ? null : res.json();
   }
 
-  // Who the token belongs to and whether it may push to the repo.
+  // Throws with status 401 when the team password is wrong.
   async check() {
-    const [user, repo] = await Promise.all([this.api("/user"), this.api(repoPath)]);
-    return { login: user.login, canPush: !!repo.permissions?.push };
+    await this.api("/check");
   }
 
   async headSha() {

@@ -3,7 +3,8 @@ import { GitHub, bytesToBase64 } from "./github.js";
 import { analyze, classify, slugify } from "./classify.js";
 
 const MAX_SIZE = 50 * 1024 * 1024;
-const TOKEN_KEY = "design-files:token";
+const PASSWORD_KEY = "design-files:password";
+const AUTHOR_KEY = "design-files:author";
 const PREVIEW_HASH = "#view=gallery&theme=light";
 
 const $ = sel => document.querySelector(sel);
@@ -22,11 +23,21 @@ const state = {
   local: new Map(), // id -> html uploaded in this session, shown until GitHub Pages has the file
   fresh: new Set(), // ids uploaded in this session
   busy: new Set(),
-  token: store.get(TOKEN_KEY) || "",
-  login: "",
-  pendingFiles: null,
+  token: store.get(PASSWORD_KEY) || "", // team password for the upload proxy
+  author: store.get(AUTHOR_KEY) || "",
 };
 let gh = new GitHub(state.token);
+store.set("design-files:token", null); // earlier versions kept a raw GitHub token here
+
+function setPassword(password) {
+  state.token = password;
+  gh = new GitHub(password);
+  store.set(PASSWORD_KEY, password || null);
+}
+function setAuthor(name) {
+  state.author = name;
+  store.set(AUTHOR_KEY, name || null);
+}
 
 // ── Data ──────────────────────────────────────────────
 
@@ -148,7 +159,7 @@ function cardFor(d) {
 
 function metaHtml(d) {
   const platforms = (d.platforms || []).map(p => PLATFORM_LABEL[p] || p).join(", ");
-  const sub = [platforms, ago(d.updatedAt), d.by && `@${d.by}`].filter(Boolean).join(" · ");
+  const sub = [platforms, ago(d.updatedAt), d.by].filter(Boolean).join(" · ");
   return `<span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="info"><div class="name" title="${esc(d.name)}">${esc(d.name)}</div><div class="sub" title="${esc(sub)}">${esc(sub)}</div></div><button class="btn ghost icon-only more" data-menu="${esc(d.id)}" aria-label="Действия"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"></circle><circle cx="12" cy="12" r="1.8" fill="currentColor"></circle><circle cx="19" cy="12" r="1.8" fill="currentColor"></circle></svg></button>`;
 }
 
@@ -264,10 +275,9 @@ function toast(text, { kind = "", spinner = false, action, timeout = 5000 } = {}
 
 // ── Writing to the repo ───────────────────────────────
 
-function needToken(files) {
+function needToken() {
   if (state.token) return false;
-  state.pendingFiles = files || null;
-  openSettings("Чтобы загружать и менять дизайны, подключите GitHub-токен — это нужно сделать один раз.");
+  openSettings("Чтобы менять дизайны и категории, введите пароль команды — это нужно сделать один раз.");
   return true;
 }
 
@@ -285,26 +295,135 @@ async function uploadFiles(fileList) {
   const tooBig = html.filter(f => f.size > MAX_SIZE);
   if (tooBig.length) toast(`Слишком большой файл (больше 50 МБ): ${tooBig.map(f => f.name).join(", ")}`, { kind: "err" });
   const ok = html.filter(f => f.size <= MAX_SIZE);
-  if (!ok.length || needToken(ok)) return;
+  if (!ok.length) return;
 
-  const progress = toast(ok.length === 1 ? `Загружаю «${ok[0].name}»…` : `Загружаю ${ok.length} файла…`, { spinner: true, timeout: 0 });
-  let batch = [];
   try {
-    const now = new Date().toISOString();
     const items = await Promise.all(
       ok.map(async f => {
         const bytes = new Uint8Array(await f.arrayBuffer());
         const text = new TextDecoder().decode(bytes);
         const info = analyze(text, f.name);
-        const { category } = classify(info, state.categories);
+        const auto = classify(info, state.categories).category;
         // Re-uploading the same file name updates that design, whatever its id was derived from.
         const id = state.designs.find(d => d.originalName === f.name)?.id || slugify(f.name);
-        return { id, text, base64: bytesToBase64(bytes), info, category, f };
+        const prev = state.designs.find(d => d.id === id);
+        return {
+          id, text, base64: bytesToBase64(bytes), info, auto, prev, f,
+          // A name or category someone picked by hand survives re-uploads; auto ones are re-detected.
+          name: prev && !prev.autoName ? prev.name : info.name,
+          category: prev && !prev.autoCategory ? prev.category : auto,
+        };
       }),
     );
     // Two files with the same name in one batch: keep the last one.
-    const byId = new Map(items.map(i => [i.id, i]));
-    batch = [...byId.values()];
+    openConfirm([...new Map(items.map(i => [i.id, i])).values()]);
+  } catch (e) {
+    toast(`Не удалось прочитать файл: ${e.message}`, { kind: "err", timeout: 10000 });
+  }
+}
+
+// ── Upload confirmation ───────────────────────────────
+
+let confirmItems = [];
+
+function categoryHint(it) {
+  if (it.category === it.auto) return "Категория · определена автоматически";
+  if (it.prev && !it.prev.autoCategory && it.category === it.prev.category) return "Категория · выбрана вручную раньше";
+  return `Категория · выбрана вручную (авто — ${categoryOf(it.auto).name})`;
+}
+
+function openConfirm(items) {
+  confirmItems = items;
+  $("#confirm-title").textContent = items.length === 1 ? "Загрузка дизайна" : `Загрузка дизайнов: ${items.length}`;
+  const options = allCategories().map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  $("#confirm-list").innerHTML = items
+    .map((it, i) => {
+      const platforms = it.info.platforms.map(p => PLATFORM_LABEL[p] || p).join(", ");
+      return `
+      <div class="confirm-item" data-i="${i}">
+        <div class="thumb"><div class="placeholder">Загружаю превью…</div></div>
+        <div class="confirm-fields">
+          <label class="field">
+            <span>Название${it.prev ? ` <b class="tag">обновит существующий</b>` : ""}</span>
+            <input class="input" data-k="name" value="${esc(it.name)}">
+          </label>
+          <label class="field">
+            <span class="cat-hint">${esc(categoryHint(it))}</span>
+            <select class="select" data-k="category">${options}</select>
+          </label>
+          <div class="file-line">${esc([it.f.name, platforms].filter(Boolean).join(" · "))}</div>
+        </div>
+      </div>`;
+    })
+    .join("");
+  $("#confirm-list").querySelectorAll(".confirm-item").forEach((row, i) => {
+    row.querySelector("select").value = items[i].category;
+    const thumb = row.querySelector(".thumb");
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("tabindex", "-1");
+    frame.srcdoc = items[i].text;
+    frame.addEventListener("load", () => thumb.querySelector(".placeholder")?.remove(), { once: true });
+    thumb.appendChild(frame);
+    sizer.observe(thumb);
+  });
+
+  $("#confirm-password").value = "";
+  $("#confirm-password").closest(".field").hidden = !!state.token;
+  $("#confirm-author").value = state.author;
+  $("#confirm-author").closest(".field").hidden = !!state.author;
+  $("#confirm-auth").hidden = !!state.token && !!state.author;
+  $("#confirm-status").textContent = "";
+  $("#confirm").showModal();
+  $("#confirm-ok").focus();
+}
+
+$("#confirm-list").addEventListener("input", e => {
+  const row = e.target.closest(".confirm-item");
+  const it = confirmItems[row.dataset.i];
+  if (e.target.dataset.k === "name") it.name = e.target.value;
+  if (e.target.dataset.k === "category") {
+    it.category = e.target.value;
+    row.querySelector(".cat-hint").textContent = categoryHint(it);
+  }
+});
+$("#confirm").addEventListener("close", () => { $("#confirm-list").innerHTML = ""; });
+
+$("#confirm-ok").addEventListener("click", async () => {
+  const status = $("#confirm-status");
+  const btn = $("#confirm-ok");
+  status.textContent = "";
+  const unnamed = confirmItems.findIndex(it => !it.name.trim());
+  if (unnamed !== -1) {
+    status.textContent = "Укажите название";
+    $(`#confirm-list [data-i="${unnamed}"] input`).focus();
+    return;
+  }
+  if (!state.token) {
+    const password = $("#confirm-password").value.trim();
+    if (!password) { status.textContent = "Введите пароль команды"; $("#confirm-password").focus(); return; }
+    btn.disabled = true;
+    try {
+      await new GitHub(password).check();
+      setPassword(password);
+    } catch (e) {
+      status.textContent = e.status === 401 ? "Неверный пароль команды" : `Ошибка: ${e.message}`;
+      return;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  const author = $("#confirm-author").value.trim();
+  if (author) setAuthor(author);
+  const items = confirmItems;
+  $("#confirm").close();
+  saveUploads(items);
+});
+
+async function saveUploads(batch) {
+  const progress = toast(batch.length === 1 ? `Загружаю «${batch[0].name}»…` : `Загружаю ${batch.length} дизайна…`, { spinner: true, timeout: 0 });
+  try {
+    const now = new Date().toISOString();
     // Show the uploaded copy right away; GitHub Pages needs a minute to publish the file.
     for (const it of batch) { state.local.set(it.id, it.text); state.fresh.add(it.id); }
 
@@ -313,21 +432,21 @@ async function uploadFiles(fileList) {
       m => {
         for (const it of batch) {
           const prev = m.designs.find(d => d.id === it.id);
+          const name = it.name.trim();
           const entry = {
             id: it.id,
-            name: prev && !prev.autoName ? prev.name : it.info.name,
-            autoName: prev ? prev.autoName : true,
+            name,
+            autoName: name === it.info.name,
             originalName: it.f.name,
             file: `${DESIGNS_DIR}/${it.id}.html`,
-            // A category someone picked by hand survives re-uploads; an auto one is re-detected.
-            category: prev && !prev.autoCategory ? prev.category : it.category,
-            autoCategory: prev ? prev.autoCategory : true,
+            category: it.category,
+            autoCategory: it.category === it.auto,
             platforms: it.info.platforms,
             screens: it.info.screens,
             size: it.f.size,
             createdAt: prev?.createdAt || now,
             updatedAt: now,
-            by: state.login || prev?.by || "",
+            by: state.author || prev?.by || "",
           };
           m.designs = prev ? m.designs.map(d => (d.id === it.id ? entry : d)) : [...m.designs, entry];
         }
@@ -340,16 +459,14 @@ async function uploadFiles(fileList) {
     for (const it of batch) {
       const d = state.designs.find(x => x.id === it.id);
       const cat = categoryOf(d.category);
-      toast(`«${d.name}» → ${cat.name}`, {
-        action: { label: "Изменить", run: () => { const card = document.querySelector(`.card[data-id="${CSS.escape(d.id)}"]`); if (card) openMenu(d.id, card.querySelector(".more")); } },
-        timeout: 8000,
-      });
+      toast(`«${d.name}» загружен в «${cat.name}»`, { timeout: 6000 });
     }
     document.querySelector(`.card[data-id="${CSS.escape(batch[0].id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (e) {
     for (const it of batch) { state.local.delete(it.id); state.fresh.delete(it.id); }
     progress.remove();
-    toast(`Не загрузилось: ${e.message}`, { kind: "err", timeout: 10000 });
+    if (e.status === 401) setPassword(""); // password changed: ask again next time
+    toast(`Не загрузилось: ${e.status === 401 ? "неверный пароль команды" : e.message}`, { kind: "err", timeout: 10000 });
   }
 }
 
@@ -421,42 +538,34 @@ window.addEventListener("scroll", closeMenu, { passive: true });
 // ── Settings ──────────────────────────────────────────
 
 function openSettings(reason) {
-  $("#token-reason").textContent = reason || "Смотреть дизайны может кто угодно по ссылке. Чтобы загружать, нужен GitHub-токен с доступом к репозиторию — вводится один раз и хранится только в этом браузере.";
+  $("#token-reason").textContent = reason || "Смотреть дизайны может кто угодно по ссылке. Чтобы загружать и менять, нужен пароль команды — вводится один раз и хранится только в этом браузере.";
   $("#token").value = state.token;
+  $("#author").value = state.author;
   const status = $("#token-status");
-  status.className = "status" + (state.login ? " ok" : "");
-  status.textContent = state.login ? `Подключено как @${state.login}` : "";
+  status.className = "status" + (state.token ? " ok" : "");
+  status.textContent = state.token ? "Пароль сохранён — можно загружать" : "";
   renderCatEditor();
   $("#settings").showModal();
 }
 
-$("#repo-link").href = `https://github.com/${REPO.owner}/${REPO.name}/settings/access`;
-$("#repo-link").textContent = `${REPO.owner}/${REPO.name}`;
+$("#author").addEventListener("change", e => setAuthor(e.target.value.trim()));
 
 $("#token-save").addEventListener("click", async () => {
-  const token = $("#token").value.trim();
+  const password = $("#token").value.trim();
   const status = $("#token-status");
-  if (!token) {
-    state.token = ""; state.login = ""; gh = new GitHub(""); store.set(TOKEN_KEY, null);
-    status.className = "status"; status.textContent = "Токен удалён";
+  if (!password) {
+    setPassword("");
+    status.className = "status"; status.textContent = "Пароль удалён из этого браузера";
     return;
   }
   status.className = "status"; status.textContent = "Проверяю…";
   try {
-    const probe = new GitHub(token);
-    const { login, canPush } = await probe.check();
-    if (!canPush) throw new Error(`у @${login} нет права записи в ${REPO.owner}/${REPO.name}`);
-    state.token = token; state.login = login; gh = probe; store.set(TOKEN_KEY, token);
-    status.className = "status ok"; status.textContent = `Подключено как @${login}`;
-    if (state.pendingFiles) {
-      const files = state.pendingFiles;
-      state.pendingFiles = null;
-      $("#settings").close();
-      uploadFiles(files);
-    }
+    await new GitHub(password).check();
+    setPassword(password);
+    status.className = "status ok"; status.textContent = "Пароль сохранён — можно загружать";
   } catch (e) {
     status.className = "status err";
-    status.textContent = e.status === 401 ? "Токен не подошёл — проверьте, что скопировали целиком" : `Ошибка: ${e.message}`;
+    status.textContent = e.status === 401 ? "Неверный пароль команды" : `Ошибка: ${e.message}`;
   }
 });
 
@@ -539,7 +648,7 @@ $("#cat-save").addEventListener("click", async () => {
 // ── Events ────────────────────────────────────────────
 
 const input = $("#file-input");
-const pickFiles = () => (state.token ? input.click() : needToken() || input.click());
+const pickFiles = () => input.click();
 $("#upload-btn").addEventListener("click", pickFiles);
 input.addEventListener("change", () => { if (input.files.length) uploadFiles(input.files); input.value = ""; });
 $("#open-settings").addEventListener("click", () => openSettings());
@@ -594,5 +703,4 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && $("#viewer").hidden && !$("#settings").open) load();
 });
 
-if (state.token) gh.check().then(r => (state.login = r.login)).catch(() => {});
 load();
